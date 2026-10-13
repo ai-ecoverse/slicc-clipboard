@@ -1,0 +1,36 @@
+#!/bin/sh
+me=pbcopy
+dev=${SLICC_CLIPBOARD_TEST_DEVICE:-/dev/clipboard}
+nl='
+'
+usage() {
+  printf 'usage: %s\n' "$me"
+}
+bad() {
+  printf '%s: %s\n' "$me" "$1" >&2
+  usage >&2
+  exit 2
+}
+fail() {
+  msg=${1##*"$nl"}
+  msg=${msg#cat: }
+  case $msg in
+    "write error: "*) msg=${msg#write error: } ;;
+    *"$dev: "*) msg=${msg##*"$dev: "} ;;
+  esac
+  printf '%s: %s\n' "$me" "${msg:-clipboard error}" >&2
+  exit 1
+}
+copy() {
+  err=$(cat 2>&1 >"$dev") || fail "$err"
+}
+for arg; do
+  case $arg in
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *) bad "unknown option: $arg" ;;
+  esac
+done
+copy
