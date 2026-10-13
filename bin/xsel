@@ -1,6 +1,6 @@
 #!/bin/sh
 me=xsel
-dev=${SLICC_CLIPBOARD_TEST_DEVICE:-/dev/clipboard}
+dev=/dev/clipboard
 nl='
 '
 usage() {
@@ -24,6 +24,12 @@ fail() {
   fi
   exit 1
 }
+need() {
+  if [ ! -c "$dev" ]; then
+    printf '%s: %s not available (needs slicc-kernel >= 1.75.0)\n' "$me" "$dev" >&2
+    exit 1
+  fi
+}
 copy() {
   err=$(cat 2>&1 >"$dev") || fail "$err"
 }
@@ -42,6 +48,7 @@ for arg; do
     *) bad "unexpected argument: $arg" ;;
   esac
 done
+need
 if [ -z "$mode" ]; then
   if [ -t 0 ]; then
     mode=out

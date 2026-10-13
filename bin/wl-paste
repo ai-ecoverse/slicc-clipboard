@@ -1,6 +1,6 @@
 #!/bin/sh
 me=wl-paste
-dev=${SLICC_CLIPBOARD_TEST_DEVICE:-/dev/clipboard}
+dev=/dev/clipboard
 nl='
 '
 usage() {
@@ -24,6 +24,12 @@ fail() {
   fi
   exit 1
 }
+need() {
+  if [ ! -c "$dev" ]; then
+    printf '%s: %s not available (needs slicc-kernel >= 1.75.0)\n' "$me" "$dev" >&2
+    exit 1
+  fi
+}
 newline=1
 for arg; do
   case $arg in
@@ -36,6 +42,7 @@ for arg; do
     *) bad "unexpected argument: $arg" ;;
   esac
 done
+need
 { err=$(cat -- "$dev" 2>&1 >&3); } 3>&1 || fail "$err"
 if [ -n "$newline" ]; then
   printf '\n'

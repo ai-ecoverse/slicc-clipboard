@@ -9,7 +9,8 @@
     "url": "git+https://github.com/ai-ecoverse/slicc-clipboard.git"
   },
   "engines": {
-    "node": ">=24"
+    "node": ">=24",
+    "slicc-kernel": ">=1.75.0"
   },
   "fledgling": {
     "provider": "github",
@@ -64,6 +65,7 @@
     "@ai-ecoverse/wasm-coreutils": "9.12.0-5",
     "@biomejs/biome": "2.5.15",
     "lefthook": "2.1.17",
-    "semantic-release": "25.0.9"
+    "semantic-release": "25.0.9",
+    "slicc-kernel-without-clipboard": "npm:@ai-ecoverse/slicc-kernel@1.74.0"
   }
 }

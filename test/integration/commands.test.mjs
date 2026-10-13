@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, before, beforeEach, describe, it } from 'node:test';
-import { boot } from './kernel.mjs';
+import { boot, bootWithoutClipboard } from './kernel.mjs';
 
 const names = ['pbcopy', 'pbpaste', 'xclip', 'xsel', 'wl-copy', 'wl-paste'];
 const board = { text: '', fail: undefined, calls: [] };
@@ -260,6 +260,44 @@ describe('on the kernel', () => {
       assert.deepEqual([stamp.uid, stamp.users], [ada.uid, 'enforce']);
     } finally {
       strict.close();
+    }
+  });
+
+  it('ignores SLICC_CLIPBOARD_TEST_DEVICE', async () => {
+    board.text = 'old';
+    const result = await os.kernel.run(['sh', '-c', 'echo new | pbcopy && pbpaste'], {
+      cwd: '/tmp',
+      env: { SLICC_CLIPBOARD_TEST_DEVICE: '/tmp/elsewhere' },
+    });
+    assert.deepEqual(result, { status: 0, stdout: 'new\n', stderr: '' });
+    assert.equal(board.text, 'new\n');
+    assert.equal((await os.sh('test -e /tmp/elsewhere')).status, 1);
+  });
+});
+
+describe('on a kernel without /dev/clipboard', () => {
+  it('fails every command instead of copying nowhere', async () => {
+    const old = await bootWithoutClipboard();
+    try {
+      for (const name of names) {
+        const result = await old.sh(`echo x | ${name}`);
+        assert.deepEqual(
+          result,
+          {
+            status: 1,
+            stdout: '',
+            stderr: `${name}: /dev/clipboard not available (needs slicc-kernel >= 1.75.0)\n`,
+          },
+          name
+        );
+      }
+      for (const script of ['xclip -o', 'xsel -o', 'xsel -c', 'wl-copy -c', 'wl-copy text']) {
+        assert.equal((await old.sh(script)).status, 1, script);
+      }
+      assert.equal((await old.sh('test -e /dev/clipboard')).status, 1);
+      assert.equal((await old.sh('pbcopy -h')).status, 0);
+    } finally {
+      old.close();
     }
   });
 });
