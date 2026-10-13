@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { createNodeKernel } from '@ai-ecoverse/slicc-kernel/node';
+import { createNodeKernel as createOldKernel } from 'slicc-kernel-without-clipboard/node';
 
 const root = resolve(import.meta.dirname, '../..');
 
@@ -20,8 +21,8 @@ async function install(kernel, name, dir, files) {
   }
 }
 
-export async function boot(options = {}) {
-  const kernel = await createNodeKernel(options);
+export async function boot(options = {}, create = createNodeKernel) {
+  const kernel = await create(options);
   for (const name of ['@ai-ecoverse/wasm-bash', '@ai-ecoverse/wasm-coreutils']) {
     const dir = join(root, 'node_modules', name);
     await install(kernel, name, dir, walk(dir));
@@ -35,3 +36,5 @@ export async function boot(options = {}) {
     close: () => kernel.terminate(),
   };
 }
+
+export const bootWithoutClipboard = (options = {}) => boot(options, createOldKernel);

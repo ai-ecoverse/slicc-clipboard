@@ -12,6 +12,8 @@ The package declares its commands in `slicc.commands`, so installing it puts the
 pnpm add -g @ai-ecoverse/slicc-clipboard
 ```
 
+It needs slicc-kernel 1.75.0 or later (`engines.slicc-kernel`). On an older kernel, which has no `/dev/clipboard`, every command except `-h` fails with `<cmd>: /dev/clipboard not available (needs slicc-kernel >= 1.75.0)` and exits 1, before it reads or writes anything.
+
 ## Commands
 
 | command | copies | pastes |
@@ -23,7 +25,7 @@ pnpm add -g @ai-ecoverse/slicc-clipboard
 | `wl-copy` | stdin, or the arguments joined by spaces | |
 | `wl-paste` | | to stdout, then a newline |
 
-- **xclip:** `-selection` (or `-se`, `-sel`, …) takes `clipboard`, `primary` or `secondary`, or any prefix of one (`c`, `clip`, `p`); all three are the one clipboard, and `primary` is the default. `-rmlastnl` (or `-r`) drops one newline at the end of what is copied or pasted. A file named `-` is stdin. Without `-i` or `-o`, xclip copies, unless stdin is a terminal; then it pastes. Of `-i` and `-o`, the last one wins, and files are ignored when pasting.
+- **xclip:** `-selection` (or `-se`, `-sel`, …) takes `clipboard`, `primary` or `secondary`, or any prefix of one (`c`, `clip`, `p`); all three are the one clipboard, and `primary` is the default. `-rmlastnl` (or `-r`) drops one newline at the end of what is copied or pasted. A file named `-` is stdin, and xclip has no `--`, so a file whose name starts with `-` needs a path (`./-notes.txt`). Without `-i` or `-o`, xclip copies, unless stdin is a terminal; then it pastes. Of `-i` and `-o`, the last one wins, and files are ignored when pasting.
 - **xsel:** `-b`/`--clipboard`, `-p`/`--primary` and `-s`/`--secondary` all mean the one clipboard. `-c`/`--clear` empties it. `-n`/`--nodetach` is accepted and does nothing. Without a mode, xsel copies, unless stdin is a terminal; then it pastes. Of `-i`, `-o` and `-c`, the last one wins. It takes no other arguments.
 - **wl-copy:** `-n`/`--trim-newline` drops one newline at the end. `-c`/`--clear` empties the clipboard. Options may come anywhere, until `--`.
 - **wl-paste:** `-n`/`--no-newline` leaves out the newline it adds.
@@ -56,8 +58,8 @@ npm run test:unit
 ```
 
 - `npm run lint`: Biome, the no-comment check and the other [slicc-shared-web](https://github.com/ai-ecoverse/slicc-shared-web) checks, `shellcheck -s sh` and `dash -n` on every script.
-- `npm test`: the integration tests in `test/integration/`, on `@ai-ecoverse/slicc-kernel/node` with wasm-bash and wasm-coreutils, and a fake `clipboard` hook behind the real `/dev/clipboard`: gh's command lines, a round trip, UTF-8, an empty clipboard, the options of all six, `EACCES`, `EIO`, `ENOTSUP`, `EFBIG`, `EILSEQ`, and an ordinary user under `users: 'enforce'`.
-- `npm run test:unit`: the unit tests in the gitignored `test/unit/`. They run every script under dash and bash, against a temporary file as the device (`SLICC_CLIPBOARD_TEST_DEVICE`, for tests only), and `scripts/cover.mjs` turns bash's `xtrace` into line coverage in `coverage/unit/lcov.info`. The pre-commit hook wants 100% coverage of the changed lines.
+- `npm test`: the integration tests in `test/integration/`, on `@ai-ecoverse/slicc-kernel/node` with wasm-bash and wasm-coreutils, and a fake `clipboard` hook behind the real `/dev/clipboard`: gh's command lines, a round trip, UTF-8, an empty clipboard, the options of all six, `EACCES`, `EIO`, `ENOTSUP`, `EFBIG`, `EILSEQ`, an ordinary user under `users: 'enforce'`, and slicc-kernel 1.74.0, which has no `/dev/clipboard` (as the devDependency `slicc-kernel-without-clipboard`).
+- `npm run test:unit`: the unit tests in the gitignored `test/unit/`. They run every script under dash and bash, against copies of the scripts that use a temporary file as the device (the shipped scripts always use `/dev/clipboard`), and `scripts/cover.mjs` turns bash's `xtrace` into line coverage in `coverage/unit/lcov.info`. The pre-commit hook wants 100% coverage of the changed lines.
 
 Releases come from `main` through semantic-release, and the release workflow publishes to npm with trusted publishing and provenance.
 
