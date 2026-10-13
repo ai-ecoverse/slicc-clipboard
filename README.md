@@ -29,19 +29,19 @@ pnpm add -g @ai-ecoverse/slicc-clipboard
 - **wl-paste:** `-n`/`--no-newline` leaves out the newline it adds.
 - **Help:** `-h` and `--help` (`-help` for xclip) print the usage line to stdout and exit 0.
 
-An unknown option (or an argument a command doesn't take) prints the command's error and its usage line to stderr and exits 2. When the device fails, the command prints `name: ` and the device's message to stderr, and exits 1; for example:
+An unknown option (or an argument a command doesn't take) prints the command's error and its usage line to stderr and exits 2. When the device fails, the command prints `name: ` and the error's message to stderr, and exits 1; for example, when the tab isn't in front:
 
 ```
-pbcopy: The clipboard needs seven's tab to be in front, and clipboard access allowed
+pbcopy: Permission denied
 ```
 
 ## The device
 
-What the scripts rely on from `/dev/clipboard`:
+What the scripts rely on from `/dev/clipboard` (slicc-kernel 1.75.0 and later):
 
 - Reading gives the clipboard's text as UTF-8, from one snapshot, then EOF.
 - Writing buffers per open file; the copy happens at `close()`. Coreutils `cat` reports an error there as a write error, so the scripts always write through `cat`, never a shell builtin.
-- A copy over 1 MiB fails with `EFBIG`, invalid UTF-8 with `EILSEQ`, a refusal (the tab not in front, or no permission) with `EACCES`, an embedder without a clipboard with `ENOTSUP`, anything else with `EIO`, each with the hook's message.
+- A copy over 1 MiB fails with `EFBIG`, invalid UTF-8 with `EILSEQ`, a refusal (the tab not in front, or no permission) with `EACCES`, an embedder without a clipboard with `ENOTSUP`, anything else with `EIO`. Coreutils sees only the errno, so the commands print its message (`Permission denied`, `Not supported`, `File too large`, `Illegal byte sequence`, `I/O error`), not the hook's.
 
 Copying or pasting NUL bytes isn't supported: the text goes through shell variables when it has to be trimmed.
 
@@ -55,7 +55,7 @@ npm run test:unit
 ```
 
 - `npm run lint`: Biome, the no-comment check and the other [slicc-shared-web](https://github.com/ai-ecoverse/slicc-shared-web) checks, `shellcheck -s sh` and `dash -n` on every script.
-- `npm test`: the integration tests in `test/integration/`, on `@ai-ecoverse/slicc-kernel/node` with its bash and coreutils.
+- `npm test`: the integration tests in `test/integration/`, on `@ai-ecoverse/slicc-kernel/node` with wasm-bash and wasm-coreutils, and a fake `clipboard` hook behind the real `/dev/clipboard`: gh's command lines, a round trip, UTF-8, an empty clipboard, the options of all six, `EACCES`, `EIO`, `ENOTSUP`, `EFBIG`, `EILSEQ`, and an ordinary user under `users: 'enforce'`.
 - `npm run test:unit`: the unit tests in the gitignored `test/unit/`. They run every script under dash and bash, against a temporary file as the device (`SLICC_CLIPBOARD_TEST_DEVICE`, for tests only), and `scripts/cover.mjs` turns bash's `xtrace` into line coverage in `coverage/unit/lcov.info`. The pre-commit hook wants 100% coverage of the changed lines.
 
 Releases come from `main` through semantic-release, and the release workflow publishes to npm with trusted publishing and provenance.
