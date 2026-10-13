@@ -1,0 +1,69 @@
+{
+  "name": "@ai-ecoverse/slicc-clipboard",
+  "version": "0.0.0",
+  "description": "pbcopy, pbpaste, xclip, xsel, wl-copy and wl-paste for SLICC, as POSIX sh scripts over /dev/clipboard",
+  "type": "module",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ai-ecoverse/slicc-clipboard.git"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "fledgling": {
+    "provider": "github",
+    "workflow": "release.yml",
+    "repo": "ai-ecoverse/slicc-clipboard",
+    "publish": true
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "slicc": {
+    "commands": {
+      "pbcopy": {
+        "script": "bin/pbcopy"
+      },
+      "pbpaste": {
+        "script": "bin/pbpaste"
+      },
+      "xclip": {
+        "script": "bin/xclip"
+      },
+      "xsel": {
+        "script": "bin/xsel"
+      },
+      "wl-copy": {
+        "script": "bin/wl-copy"
+      },
+      "wl-paste": {
+        "script": "bin/wl-paste"
+      }
+    }
+  },
+  "files": [
+    "bin"
+  ],
+  "scripts": {
+    "prepare": "lefthook install",
+    "lint": "slicc-lint && shellcheck -s sh bin/* && for f in bin/*; do dash -n \"$f\" || exit 1; done",
+    "format": "biome check --write .",
+    "test": "node --test --test-timeout=120000 test/integration/*.test.mjs",
+    "test:unit": "node scripts/cover.mjs",
+    "build": "npm pack --dry-run",
+    "trust": "npx fledgling sync -y --skip-publish",
+    "trust:dry": "npx fledgling sync --dry-run -y --skip-publish",
+    "release": "semantic-release"
+  },
+  "devDependencies": {
+    "@ai-ecoverse/slicc-kernel": "1.73.1",
+    "@ai-ecoverse/slicc-shared-web": "1.13.1",
+    "@ai-ecoverse/wasm-bash": "5.3.0-17",
+    "@ai-ecoverse/wasm-coreutils": "9.12.0-5",
+    "@biomejs/biome": "2.5.15",
+    "lefthook": "2.1.16",
+    "semantic-release": "25.0.9"
+  }
+}
