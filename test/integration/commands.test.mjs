@@ -1,43 +1,74 @@
 import assert from 'node:assert/strict';
-import { after, before, describe, it } from 'node:test';
+import { after, before, beforeEach, describe, it } from 'node:test';
 import { boot } from './kernel.mjs';
 
-let os;
-const dev = '/tmp/clipboard';
-const env = { SLICC_CLIPBOARD_TEST_DEVICE: dev };
+const names = ['pbcopy', 'pbpaste', 'xclip', 'xsel', 'wl-copy', 'wl-paste'];
+const board = { text: '', fail: undefined, calls: [] };
 
-async function sh(script, clip) {
-  await os.kernel.writeFile(dev, clip ?? '');
-  const result = await os.sh(script, { env });
-  return { ...result, clip: new TextDecoder().decode(await os.kernel.readFile(dev)) };
+function refusal(name, message) {
+  return Object.assign(new Error(message), { name });
+}
+
+const clipboard = {
+  async read(stamp) {
+    board.calls.push(['read', stamp]);
+    if (board.fail) throw board.fail;
+    return board.text;
+  },
+  async write(text, stamp) {
+    board.calls.push(['write', text, stamp]);
+    if (board.fail) throw board.fail;
+    board.text = text;
+  },
+};
+
+let os;
+let bare;
+
+async function sh(script, text = 'old') {
+  board.text = text;
+  const result = await os.sh(script);
+  return { ...result, clip: board.text };
 }
 
 before(async () => {
-  os = await boot();
+  os = await boot({ clipboard });
+  bare = await boot();
 });
 
-after(() => os?.close());
+after(() => {
+  os?.close();
+  bare?.close();
+});
+
+beforeEach(() => {
+  board.fail = undefined;
+  board.calls = [];
+});
 
 describe('on the kernel', () => {
-  it('lists all six commands', async () => {
-    const result = await os.sh('command -v pbcopy pbpaste xclip xsel wl-copy wl-paste');
-    assert.equal(
-      result.stdout,
-      ['pbcopy', 'pbpaste', 'xclip', 'xsel', 'wl-copy', 'wl-paste']
-        .map((n) => `/usr/bin/${n}\n`)
-        .join('')
-    );
+  it('lists all six commands, and /dev/clipboard', async () => {
+    const result = await os.sh(`command -v ${names.join(' ')} && test -c /dev/clipboard`);
+    assert.equal(result.stdout, names.map((n) => `/usr/bin/${n}\n`).join(''));
+    assert.equal(result.status, 0);
   });
 
-  it('copies with the command lines gh uses', async () => {
+  it('copies with the command lines gh uses, as one write per copy', async () => {
     for (const command of [
       'pbcopy',
       'xclip -in -selection clipboard',
       'xsel --input --clipboard',
       'wl-copy',
     ]) {
-      const result = await sh(`printf 'h\\303\\251 \\342\\230\\203\\n' | ${command}`, 'old');
+      board.calls = [];
+      const result = await sh(`printf 'h\\303\\251 \\342\\230\\203\\n' | ${command}`);
       assert.deepEqual(result, { status: 0, stdout: '', stderr: '', clip: 'hé ☃\n' }, command);
+      assert.deepEqual(
+        board.calls.map(([op, text]) => [op, text]),
+        [['write', 'hé ☃\n']],
+        command
+      );
+      assert.equal(board.calls[0][2].uid, 0, command);
     }
   });
 
@@ -57,53 +88,169 @@ describe('on the kernel', () => {
     }
   });
 
+  it('round-trips text through the hook', async () => {
+    const result = await sh("printf 'a\\tb\\n\\360\\237\\215\\246' | pbcopy && pbpaste", '');
+    assert.deepEqual(result, { status: 0, stdout: 'a\tb\n🍦', stderr: '', clip: 'a\tb\n🍦' });
+  });
+
   it('pastes an empty clipboard', async () => {
-    for (const command of ['pbpaste', 'xclip -o', 'xsel -o', 'wl-paste -n']) {
-      assert.equal((await sh(command, '')).stdout, '', command);
+    for (const command of ['pbpaste', 'xclip -o', 'xsel -o', 'wl-paste -n', 'xclip -o -rmlastnl']) {
+      assert.deepEqual(
+        await sh(command, ''),
+        { status: 0, stdout: '', stderr: '', clip: '' },
+        command
+      );
     }
     assert.equal((await sh('wl-paste', '')).stdout, '\n');
+  });
+
+  it('clears and copies empty input', async () => {
+    for (const command of [
+      'xsel -c',
+      'xsel --clear',
+      'wl-copy -c',
+      'wl-copy --clear',
+      'pbcopy </dev/null',
+    ]) {
+      assert.deepEqual(await sh(command), { status: 0, stdout: '', stderr: '', clip: '' }, command);
+    }
   });
 
   it('parses the options of all six', async () => {
     const cases = [
       ['echo a | xclip -sel c -rmlastnl', 'a'],
-      ['printf "x\\n" > /tmp/f && xclip -i /tmp/f', 'x\n'],
+      ['printf "x\\n" > /tmp/f && printf "y" > /tmp/g && xclip -i /tmp/f /tmp/g', 'x\ny'],
       ['echo a | xclip -selection primary', 'a\n'],
+      ['echo a | xclip -selection secondary -i -', 'a\n'],
       ['echo a | xsel -b -i -n', 'a\n'],
-      ['echo a | xsel -p --input', 'a\n'],
-      ['xsel --clear', ''],
+      ['echo a | xsel -p --input --nodetach', 'a\n'],
+      ['echo a | xsel -s', 'a\n'],
       ['wl-copy -n "one two\n"', 'one two'],
+      ['wl-copy one two', 'one two'],
       ['echo a | wl-copy --trim-newline', 'a'],
-      ['wl-copy --clear', ''],
       ['wl-copy -- -n', '-n'],
     ];
     for (const [script, clip] of cases) {
-      const result = await sh(script, 'old');
-      assert.deepEqual(result, { status: 0, stdout: '', stderr: '', clip }, script);
+      assert.deepEqual(await sh(script), { status: 0, stdout: '', stderr: '', clip }, script);
     }
     assert.equal((await sh('xclip -o -rmlastnl', 'a\n')).stdout, 'a');
     assert.equal((await sh('wl-paste', 'a')).stdout, 'a\n');
+    for (const name of names) {
+      const result = await sh(`${name} -h`);
+      assert.match(result.stdout, new RegExp(`^usage: ${name}`), name);
+      assert.equal(result.status, 0, name);
+    }
   });
 
   it('refuses unknown options with status 2 and a usage line', async () => {
-    for (const name of ['pbcopy', 'pbpaste', 'xclip', 'xsel', 'wl-copy', 'wl-paste']) {
-      const result = await sh(`${name} -Z </dev/null`, 'old');
+    for (const name of names) {
+      const result = await sh(`${name} -Z </dev/null`);
       assert.equal(result.status, 2, name);
       assert.match(result.stderr, new RegExp(`^${name}: unknown option: -Z\nusage: ${name}`), name);
       assert.equal(result.clip, 'old', name);
     }
-    const sel = await sh('xclip -selection nope </dev/null', 'old');
-    assert.equal(sel.status, 2);
+    for (const script of [
+      'xclip -selection nope',
+      'xclip -sel',
+      'xsel word',
+      'wl-paste word',
+      'pbpaste word',
+    ]) {
+      const result = await sh(`${script} </dev/null`);
+      assert.equal(result.status, 2, script);
+      assert.equal(result.clip, 'old', script);
+    }
+    assert.deepEqual(board.calls, []);
   });
 
-  it("prints coreutils' write error and exits 1", async () => {
-    const result = await os.sh('echo x | pbcopy', {
-      env: { SLICC_CLIPBOARD_TEST_DEVICE: '/dev/full' },
+  it('reports a refusal as EACCES, on copy and paste', async () => {
+    board.fail = refusal('NotAllowedError', "The clipboard needs seven's tab to be in front");
+    for (const name of names) {
+      const script =
+        name.endsWith('copy') || name === 'xsel' || name === 'xclip' ? `echo x | ${name}` : name;
+      const result = await sh(script);
+      assert.deepEqual(
+        result,
+        { status: 1, stdout: '', stderr: `${name}: Permission denied\n`, clip: 'old' },
+        name
+      );
+    }
+    for (const script of ['pbpaste', 'xclip -o', 'xclip -o -rmlastnl', 'xsel -o', 'wl-paste']) {
+      const result = await sh(script);
+      assert.equal(result.status, 1, script);
+      assert.equal(result.stdout, '', script);
+      assert.match(result.stderr, /: Permission denied\n$/, script);
+    }
+  });
+
+  it('reports any other hook failure as EIO', async () => {
+    board.fail = new Error('boom');
+    assert.deepEqual(await sh('echo x | xclip -i'), {
+      status: 1,
+      stdout: '',
+      stderr: 'xclip: I/O error\n',
+      clip: 'old',
     });
+    assert.equal((await sh('pbpaste')).stderr, 'pbpaste: I/O error\n');
+  });
+
+  it('reports an embedder without a clipboard as ENOTSUP', async () => {
+    for (const [script, name] of [
+      ['pbpaste', 'pbpaste'],
+      ['echo x | pbcopy', 'pbcopy'],
+      ['wl-copy x', 'wl-copy'],
+      ['xsel -o', 'xsel'],
+    ]) {
+      assert.deepEqual(
+        await bare.sh(script),
+        { status: 1, stdout: '', stderr: `${name}: Not supported\n` },
+        script
+      );
+    }
+  });
+
+  it('copies 1 MiB, and refuses one byte more with EFBIG', async () => {
+    const mib = 1024 * 1024;
+    const ok = await sh(`head -c ${mib} /dev/zero | tr '\\0' a | pbcopy`);
+    assert.equal(ok.status, 0);
+    assert.equal(ok.clip.length, mib);
+    const big = await sh(`head -c ${mib + 1} /dev/zero | tr '\\0' a | xclip -i`);
+    assert.deepEqual(big, {
+      status: 1,
+      stdout: '',
+      stderr: 'xclip: File too large\n',
+      clip: 'old',
+    });
+  });
+
+  it('refuses invalid UTF-8 with EILSEQ, without calling the hook', async () => {
+    const result = await sh("printf 'a\\377' | pbcopy");
     assert.deepEqual(result, {
       status: 1,
       stdout: '',
-      stderr: 'pbcopy: No space left on device\n',
+      stderr: 'pbcopy: Illegal byte sequence\n',
+      clip: 'old',
     });
+    assert.deepEqual(board.calls, []);
+  });
+
+  it('runs under users enforce as an ordinary user', async () => {
+    const strict = await boot({ clipboard, users: 'enforce' });
+    try {
+      const ada = await strict.kernel.users.add({ name: 'ada' });
+      board.text = 'shared';
+      const result = await strict.kernel.run(['sh', '-c', 'pbpaste && echo new | wl-copy -n'], {
+        user: 'ada',
+        cwd: ada.home,
+      });
+      assert.deepEqual(
+        { ...result, clip: board.text },
+        { status: 0, stdout: 'shared', stderr: '', clip: 'new' }
+      );
+      const stamp = board.calls.at(-1)[2];
+      assert.deepEqual([stamp.uid, stamp.users], [ada.uid, 'enforce']);
+    } finally {
+      strict.close();
+    }
   });
 });
