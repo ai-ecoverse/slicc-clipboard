@@ -171,7 +171,12 @@ describe('on the kernel', () => {
       const result = await sh(script);
       assert.deepEqual(
         result,
-        { status: 1, stdout: '', stderr: `${name}: Permission denied\n`, clip: 'old' },
+        {
+          status: 1,
+          stdout: '',
+          stderr: `${name}: Permission denied\n${name}: the clipboard needs seven's tab in front, with clipboard access allowed\n`,
+          clip: 'old',
+        },
         name
       );
     }
@@ -179,7 +184,11 @@ describe('on the kernel', () => {
       const result = await sh(script);
       assert.equal(result.status, 1, script);
       assert.equal(result.stdout, '', script);
-      assert.match(result.stderr, /: Permission denied\n$/, script);
+      assert.match(
+        result.stderr,
+        /: Permission denied\n\S+: the clipboard needs seven's tab in front, with clipboard access allowed\n$/,
+        script
+      );
     }
   });
 

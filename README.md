@@ -33,6 +33,7 @@ An unknown option (or an argument a command doesn't take) prints the command's e
 
 ```
 pbcopy: Permission denied
+pbcopy: the clipboard needs seven's tab in front, with clipboard access allowed
 ```
 
 ## The device
@@ -41,7 +42,7 @@ What the scripts rely on from `/dev/clipboard` (slicc-kernel 1.75.0 and later):
 
 - Reading gives the clipboard's text as UTF-8, from one snapshot, then EOF.
 - Writing buffers per open file; the copy happens at `close()`. Coreutils `cat` reports an error there as a write error, so the scripts always write through `cat`, never a shell builtin.
-- A copy over 1 MiB fails with `EFBIG`, invalid UTF-8 with `EILSEQ`, a refusal (the tab not in front, or no permission) with `EACCES`, an embedder without a clipboard with `ENOTSUP`, anything else with `EIO`. Coreutils sees only the errno, so the commands print its message (`Permission denied`, `Not supported`, `File too large`, `Illegal byte sequence`, `I/O error`), not the hook's.
+- A copy over 1 MiB fails with `EFBIG`, invalid UTF-8 with `EILSEQ`, a refusal (the tab not in front, or no permission) with `EACCES`, an embedder without a clipboard with `ENOTSUP`, anything else with `EIO`. Coreutils sees only the errno, so the commands print its message (`Permission denied`, `Not supported`, `File too large`, `Illegal byte sequence`, `I/O error`), not the hook's. After `Permission denied`, they add a second line that says what to do.
 
 Copying or pasting NUL bytes isn't supported: the text goes through shell variables when it has to be trimmed.
 

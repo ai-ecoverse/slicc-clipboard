@@ -19,6 +19,9 @@ fail() {
     *"$dev: "*) msg=${msg##*"$dev: "} ;;
   esac
   printf '%s: %s\n' "$me" "${msg:-clipboard error}" >&2
+  if [ "$msg" = "Permission denied" ]; then
+    printf "%s: the clipboard needs seven's tab in front, with clipboard access allowed\n" "$me" >&2
+  fi
   exit 1
 }
 copy() {
