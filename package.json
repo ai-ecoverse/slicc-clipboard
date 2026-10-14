@@ -66,6 +66,6 @@
     "@biomejs/biome": "2.5.15",
     "lefthook": "2.1.17",
     "semantic-release": "25.0.9",
-    "slicc-kernel-without-clipboard": "npm:@ai-ecoverse/slicc-kernel@1.74.0"
+    "slicc-kernel-without-clipboard": "npm:@ai-ecoverse/slicc-kernel@1.85.1"
   }
 }
