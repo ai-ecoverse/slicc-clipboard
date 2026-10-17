@@ -59,13 +59,13 @@
     "release": "semantic-release"
   },
   "devDependencies": {
-    "@ai-ecoverse/slicc-kernel": "1.85.1",
+    "@ai-ecoverse/slicc-kernel": "1.124.2",
     "@ai-ecoverse/slicc-shared-web": "1.23.2",
     "@ai-ecoverse/wasm-bash": "5.3.0-19",
     "@ai-ecoverse/wasm-coreutils": "9.12.0-9",
     "@biomejs/biome": "2.5.15",
     "lefthook": "2.2.1",
     "semantic-release": "25.0.9",
-    "slicc-kernel-without-clipboard": "npm:@ai-ecoverse/slicc-kernel@1.74.0"
+    "slicc-kernel-without-clipboard": "npm:@ai-ecoverse/slicc-kernel@1.124.2"
   }
 }
