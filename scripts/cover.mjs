@@ -50,11 +50,27 @@ function main() {
   const files = readdirSync(tests)
     .filter((name) => name.endsWith('.test.mjs'))
     .map((name) => join(tests, name));
-  const run = spawnSync(process.execPath, ['--test', ...files], {
-    cwd: root,
-    stdio: 'inherit',
-    env: { ...process.env, SLICC_CLIPBOARD_TRACE: traces },
-  });
+  const js = join(out, 'js.info');
+  const env = { ...process.env, SLICC_CLIPBOARD_TRACE: traces };
+  delete env.SLICC_UNIT_TESTS;
+  const run = spawnSync(
+    process.execPath,
+    [
+      '--test',
+      '--experimental-test-coverage',
+      '--test-coverage-include=host/**',
+      '--test-reporter=spec',
+      '--test-reporter-destination=stdout',
+      '--test-reporter=lcov',
+      `--test-reporter-destination=${js}`,
+      ...files,
+    ],
+    {
+      cwd: root,
+      stdio: 'inherit',
+      env,
+    }
+  );
   const bin = join(root, 'bin');
   const report = readdirSync(bin).map((name) => {
     const counts = new Map();
@@ -69,7 +85,8 @@ function main() {
       counts,
     };
   });
-  writeFileSync(join(out, 'lcov.info'), lcov(report));
+  const own = readFileSync(js, 'utf8').replaceAll(`SF:${root}/`, 'SF:');
+  writeFileSync(join(out, 'lcov.info'), lcov(report) + own);
   for (const { path, lines, counts } of report) {
     const missed = lines.filter((line) => !counts.get(line));
     const name = path.slice(bin.length + 1);
