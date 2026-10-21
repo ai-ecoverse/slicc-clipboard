@@ -74,7 +74,7 @@
     "test:host": "node --test --test-concurrency=1 --test-timeout=60000 test/integration/host.test.mjs"
   },
   "devDependencies": {
-    "@ai-ecoverse/slicc-kernel": "1.143.4",
+    "@ai-ecoverse/slicc-kernel": "1.143.5",
     "@ai-ecoverse/slicc-shared-web": "1.30.6",
     "@ai-ecoverse/wasm-bash": "5.3.0-23",
     "@ai-ecoverse/wasm-coreutils": "9.12.0-13",
