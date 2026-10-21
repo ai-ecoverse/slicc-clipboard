@@ -6,15 +6,18 @@ const utf8 = { LANG: 'en_US.UTF-8', LC_ALL: 'en_US.UTF-8' };
 
 const powershell = {
   copy: [
-    "$ErrorActionPreference = 'Stop'",
     '$in = [Console]::OpenStandardInput()',
     '$buffer = New-Object System.IO.MemoryStream',
     '$in.CopyTo($buffer)',
     '$text = (New-Object System.Text.UTF8Encoding $false, $true).GetString($buffer.ToArray())',
-    'Set-Clipboard -Value $text',
+    'if ($text.Length -eq 0) {',
+    '  Add-Type -AssemblyName System.Windows.Forms',
+    '  [System.Windows.Forms.Clipboard]::Clear()',
+    '} else {',
+    '  Set-Clipboard -Value $text',
+    '}',
   ],
   paste: [
-    "$ErrorActionPreference = 'Stop'",
     '$text = Get-Clipboard -Raw',
     "if ($null -eq $text) { $text = '' }",
     '$bytes = (New-Object System.Text.UTF8Encoding $false).GetBytes($text)',
@@ -24,6 +27,19 @@ const powershell = {
   ],
 };
 
+function script(lines) {
+  return [
+    "$ErrorActionPreference = 'Stop'",
+    "$ProgressPreference = 'SilentlyContinue'",
+    'try {',
+    ...lines.map((line) => `  ${line}`),
+    '} catch {',
+    '  [Console]::Error.WriteLine($_.Exception.Message)',
+    '  exit 1',
+    '}',
+  ];
+}
+
 function encoded(lines) {
   return Buffer.from(lines.join('\n'), 'utf16le').toString('base64');
 }
@@ -32,7 +48,12 @@ export function candidates(mode, platform, env) {
   const copy = mode === 'copy';
   if (platform === 'darwin') return [{ file: copy ? 'pbcopy' : 'pbpaste', args: [], env: utf8 }];
   if (platform === 'win32') {
-    const args = ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded(powershell[mode])];
+    const args = [
+      '-NoProfile',
+      '-NonInteractive',
+      '-EncodedCommand',
+      encoded(script(powershell[mode])),
+    ];
     return ['powershell.exe', 'pwsh.exe'].map((file) => ({ file, args }));
   }
   const list = [];

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { after, describe, it } from 'node:test';
 
 const root = resolve(import.meta.dirname, '../..');
@@ -34,9 +34,9 @@ function bin(names) {
 
 function legs() {
   if (process.platform === 'win32') {
-    return [
+    const list = [
       {
-        name: 'powershell',
+        name: 'powershell.exe',
         path: join(
           process.env.SystemRoot ?? 'C:\\Windows',
           'System32',
@@ -45,6 +45,10 @@ function legs() {
         ),
       },
     ];
+    const pwsh = spawnSync('where.exe', ['pwsh.exe'], { encoding: 'utf8' });
+    if (pwsh.status === 0)
+      list.push({ name: 'pwsh.exe', path: dirname(pwsh.stdout.split(/\r?\n/)[0]) });
+    return list;
   }
   if (process.platform === 'darwin') return [{ name: 'pbcopy', path: bin(['pbcopy', 'pbpaste']) }];
   return ['xclip', 'xsel'].map((name) => ({ name, path: bin([name]) }));
