@@ -14,14 +14,14 @@ function walk(dir, out = []) {
   return out;
 }
 
-async function install(kernel, name, dir, files) {
+async function install(kernel, name, dir, files, modules = '/node_modules') {
   for (const path of files) {
     const rel = relative(dir, path).replaceAll('\\', '/');
-    await kernel.writeFile(`/node_modules/${name}/${rel}`, readFileSync(path));
+    await kernel.writeFile(`${modules}/${name}/${rel}`, readFileSync(path));
   }
 }
 
-export async function boot(options = {}, create = createNodeKernel) {
+export async function boot(options = {}, create = createNodeKernel, modules = '/node_modules') {
   const kernel = await create(options);
   for (const name of ['@ai-ecoverse/wasm-bash', '@ai-ecoverse/wasm-coreutils']) {
     const dir = join(root, 'node_modules', name);
@@ -29,7 +29,7 @@ export async function boot(options = {}, create = createNodeKernel) {
   }
   const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
   const own = [join(root, 'package.json'), ...pkg.files.flatMap((file) => walk(join(root, file)))];
-  await install(kernel, pkg.name, root, own);
+  await install(kernel, pkg.name, root, own, modules);
   return {
     kernel,
     sh: (script, opts = {}) => kernel.run(['sh', '-c', script], { cwd: '/tmp', ...opts }),

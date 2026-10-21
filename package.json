@@ -1,7 +1,7 @@
 {
   "name": "@ai-ecoverse/slicc-clipboard",
   "version": "0.0.0",
-  "description": "pbcopy, pbpaste, xclip, xsel, wl-copy and wl-paste for SLICC, as POSIX sh scripts over /dev/clipboard",
+  "description": "pbcopy, pbpaste, xclip, xsel, wl-copy and wl-paste for SLICC, as POSIX sh scripts over /dev/clipboard, and sccopy and scpaste for SLICC and any host",
   "type": "module",
   "license": "Apache-2.0",
   "repository": {
@@ -11,6 +11,10 @@
   "engines": {
     "node": ">=24",
     "slicc-kernel": ">=1.75.0"
+  },
+  "bin": {
+    "sccopy": "host/sccopy.mjs",
+    "scpaste": "host/scpaste.mjs"
   },
   "fledgling": {
     "provider": "github",
@@ -41,11 +45,21 @@
       },
       "wl-paste": {
         "script": "bin/wl-paste"
+      },
+      "sccopy": {
+        "script": "bin/sccopy"
+      },
+      "scpaste": {
+        "script": "bin/scpaste"
       }
-    }
+    },
+    "unitSources": [
+      "host"
+    ]
   },
   "files": [
-    "bin"
+    "bin",
+    "host"
   ],
   "scripts": {
     "prepare": "lefthook install",
@@ -56,7 +70,8 @@
     "build": "npm pack --dry-run",
     "trust": "npx fledgling sync -y --skip-publish",
     "trust:dry": "npx fledgling sync --dry-run -y --skip-publish",
-    "release": "semantic-release"
+    "release": "semantic-release",
+    "test:host": "node --test --test-concurrency=1 --test-timeout=60000 test/integration/host.test.mjs"
   },
   "devDependencies": {
     "@ai-ecoverse/slicc-kernel": "1.142.2",

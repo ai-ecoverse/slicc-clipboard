@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { boot, bootWithoutClipboard } from './kernel.mjs';
 
-const names = ['pbcopy', 'pbpaste', 'xclip', 'xsel', 'wl-copy', 'wl-paste'];
+const names = ['pbcopy', 'pbpaste', 'xclip', 'xsel', 'wl-copy', 'wl-paste', 'sccopy', 'scpaste'];
 const board = { text: '', fail: undefined, calls: [] };
 
 function refusal(name, message) {
@@ -47,7 +47,7 @@ beforeEach(() => {
 });
 
 describe('on the kernel', () => {
-  it('lists all six commands, and /dev/clipboard', async () => {
+  it('lists all eight commands, and /dev/clipboard', async () => {
     const result = await os.sh(`command -v ${names.join(' ')} && test -c /dev/clipboard`);
     assert.equal(result.stdout, names.map((n) => `/usr/bin/${n}\n`).join(''));
     assert.equal(result.status, 0);
@@ -88,6 +88,47 @@ describe('on the kernel', () => {
     }
   });
 
+  it('runs sccopy and scpaste as pbcopy and pbpaste', async () => {
+    const result = await sh("printf 'h\\303\\251\\n\\n' | sccopy && scpaste && pbpaste", '');
+    assert.deepEqual(result, { status: 0, stdout: 'hé\n\nhé\n\n', stderr: '', clip: 'hé\n\n' });
+    assert.deepEqual(await sh('scpaste', ''), { status: 0, stdout: '', stderr: '', clip: '' });
+    assert.deepEqual(await sh('sccopy </dev/null'), {
+      status: 0,
+      stdout: '',
+      stderr: '',
+      clip: '',
+    });
+    for (const name of ['sccopy', 'scpaste']) {
+      assert.deepEqual(await sh(`${name} --help`), {
+        status: 0,
+        stdout: `usage: ${name}\n`,
+        stderr: '',
+        clip: 'old',
+      });
+      assert.deepEqual(await sh(`${name} word </dev/null`), {
+        status: 2,
+        stdout: '',
+        stderr: `${name}: unknown option: word\nusage: ${name}\n`,
+        clip: 'old',
+      });
+    }
+  });
+
+  it('runs the sh sccopy and scpaste where the kernel also takes npm bins', async () => {
+    const modules = '/opt/tool/node_modules';
+    const tool = await boot({ clipboard, commands: { append: [modules] } }, undefined, modules);
+    try {
+      const where = await tool.sh('command -v sccopy scpaste xclip');
+      assert.equal(where.stdout, '/usr/bin/sccopy\n/usr/bin/scpaste\n/usr/bin/xclip\n');
+      board.text = '';
+      const result = await tool.sh("printf 'h\\303\\251\\n' | sccopy && scpaste");
+      assert.deepEqual(result, { status: 0, stdout: 'hé\n', stderr: '' });
+      assert.equal(board.text, 'hé\n');
+    } finally {
+      tool.close();
+    }
+  });
+
   it('round-trips text through the hook', async () => {
     const result = await sh("printf 'a\\tb\\n\\360\\237\\215\\246' | pbcopy && pbpaste", '');
     assert.deepEqual(result, { status: 0, stdout: 'a\tb\n🍦', stderr: '', clip: 'a\tb\n🍦' });
@@ -116,7 +157,7 @@ describe('on the kernel', () => {
     }
   });
 
-  it('parses the options of all six', async () => {
+  it('parses the options of all eight', async () => {
     const cases = [
       ['echo a | xclip -sel c -rmlastnl', 'a'],
       ['printf "x\\n" > /tmp/f && printf "y" > /tmp/g && xclip -i /tmp/f /tmp/g', 'x\ny'],

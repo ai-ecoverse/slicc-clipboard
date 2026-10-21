@@ -34,7 +34,7 @@ jobs:
 
       - run: npm run lint
 
-  test:
+  integration:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -52,3 +52,41 @@ jobs:
       - run: npm test
 
       - run: npm pack --dry-run --ignore-scripts
+
+  host:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    env:
+      SLICC_CLIPBOARD_HOST_TESTS: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+
+      - name: Install Xvfb, xclip and xsel
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends xvfb xauth xclip xsel
+
+      - if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:host
+
+      - if: runner.os != 'Linux'
+        run: npm run test:host
+
+  test:
+    if: always()
+    needs: [integration, host]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Integration and host tests passed
+        env:
+          INTEGRATION: ${{ needs.integration.result }}
+          HOST: ${{ needs.host.result }}
+        run: test "$INTEGRATION" = success && test "$HOST" = success
