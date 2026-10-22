@@ -227,7 +227,7 @@ function tried(command) {
 
 describe('sccopy and scpaste', () => {
   it('copy and paste through the tool on PATH', {
-    skip: process.platform === 'win32' && 'the fakes are sh scripts',
+    skip: process.platform === 'win32' && 'Windows does not run a file through its shebang',
   }, () => {
     const names = ['pbcopy', 'pbpaste', 'xclip', 'xsel'];
     const log = mkdtempSync(join(scratch, 'log-'));
