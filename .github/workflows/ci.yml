@@ -7,86 +7,32 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
+  actions: read
+  issues: write
+  pull-requests: write
+  statuses: write
+  id-token: write
+  attestations: write
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    env:
-      LEFTHOOK: '0'
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+  ci:
+    uses: ai-ecoverse/slicc-shared-web/.github/workflows/pipeline.yml@v2.8.4
+    secrets: inherit
+    with:
+      test-glob: test/integration/*.test.mjs
+      shards: 2
+      review-prompt: |
+        SLICC-CLIPBOARD
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
-        with:
-          node-version: 24
-          cache: npm
+        This repository is slicc-clipboard (`@ai-ecoverse/slicc-clipboard`): `pbcopy`, `pbpaste`, `xclip`, `xsel`, `wl-copy`, `wl-paste`, `sccopy` and `scpaste` as POSIX `sh` scripts in `bin/` over the slicc-kernel's `/dev/clipboard`, and `sccopy` and `scpaste` for ordinary hosts as Node in `host/` (pbcopy/pbpaste on macOS, wl-clipboard, xclip or xsel on Linux, PowerShell on Windows). The README is the contract: read the sections the change touches first. `git diff origin/main...HEAD`, or `$RUNNER_TEMP/review/context/pr.diff`, is the change.
 
-      - name: Install shellcheck and dash
-        run: sudo apt-get install -y --no-install-recommends shellcheck dash
-
-      - run: npm ci
-
-      - run: npm run lint
-
-  integration:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    env:
-      LEFTHOOK: '0'
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
-        with:
-          node-version: 24
-          cache: npm
-
-      - run: npm ci
-
-      - run: npm test
-
-      - run: npm pack --dry-run --ignore-scripts
-
-  host:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
-    env:
-      SLICC_CLIPBOARD_HOST_TESTS: '1'
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
-        with:
-          node-version: 24
-
-      - name: Install Xvfb, xclip and xsel
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends xvfb xauth xclip xsel
-
-      - if: runner.os == 'Linux'
-        run: xvfb-run -a npm run test:host
-
-      - if: runner.os != 'Linux'
-        run: npm run test:host
-
-  test:
-    if: always()
-    needs: [integration, host]
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Integration and host tests passed
-        env:
-          INTEGRATION: ${{ needs.integration.result }}
-          HOST: ${{ needs.host.result }}
-        run: test "$INTEGRATION" = success && test "$HOST" = success
+        Look for real defects, in this order:
+        1. Correctness: the scripts are POSIX `sh` (dash), use only `/dev/clipboard`, write to it through coreutils `cat`, keep bytes unchanged, and accept the options the README lists; `host/` picks the tool and argv the README names for each platform.
+        2. Security: no clipboard content reaches an error, a log or another process than the one tool.
+        3. Tests: every behaviour change has an integration test in `test/integration/`, and a fix's test fails without the fix.
+        4. Repo rules: no comments anywhere (YAML too), no unit tests in git, and a conventional-commit title (`fix`, `feat` and `perf` release, the rest don't).
