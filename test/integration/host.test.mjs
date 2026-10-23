@@ -11,9 +11,9 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { after, describe, it } from 'node:test';
-import { run as clipboard } from '../../host/clipboard.mjs';
+import { run as clipboard, lookup } from '../../host/clipboard.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const scratch = mkdtempSync(join(tmpdir(), 'slicc-clipboard-host-'));
@@ -103,7 +103,9 @@ function decoded(argv) {
 
 const all = ['pbcopy', 'pbpaste', 'wl-copy', 'wl-paste', 'xclip', 'xsel'];
 
-describe('picks the tool for each platform', () => {
+describe('picks the tool for each platform', {
+  skip: process.platform === 'win32' && 'Windows does not run a file through its shebang',
+}, () => {
   it('uses pbcopy and pbpaste on macOS, in a UTF-8 locale', async () => {
     const copy = await select({ platform: 'darwin', names: all, mode: 'copy' });
     assert.deepEqual(copy, {
@@ -278,6 +280,15 @@ function live(name) {
   return false;
 }
 
+const texts = ['h\u00e9 \u2603 \ud83c\udf66\ttab', 'one\ntwo\n', '\n', 'x', ''];
+
+function trip(name, env) {
+  for (const text of texts) {
+    assert.deepEqual(host('sccopy', [], { input: text, env }), ok, name);
+    assert.deepEqual(host('scpaste', [], { env }), { ...ok, stdout: text }, name);
+  }
+}
+
 describe('the real clipboard on Linux', () => {
   for (const name of ['xclip', 'xsel']) {
     it(`round-trips UTF-8, a trailing newline and an empty clipboard through ${name}`, {
@@ -285,11 +296,24 @@ describe('the real clipboard on Linux', () => {
     }, () => {
       const dir = mkdtempSync(join(scratch, 'bin-'));
       symlinkSync(installed(name), join(dir, name));
-      const env = base(dir);
-      for (const text of ['h\u00e9 \u2603 \ud83c\udf66\ttab', 'one\ntwo\n', '\n', 'x', '']) {
-        assert.deepEqual(host('sccopy', [], { input: text, env }), ok, name);
-        assert.deepEqual(host('scpaste', [], { env }), { ...ok, stdout: text }, name);
-      }
+      trip(name, base(dir));
+    });
+  }
+});
+
+function windows(name) {
+  if (process.env.CI !== 'true') return 'touches the real clipboard, so it runs on CI only';
+  if (process.platform !== 'win32') return 'runs on Windows only';
+  if (!lookup(name, 'win32', process.env)) return `${name} is not on PATH`;
+  return false;
+}
+
+describe('the real clipboard on Windows', () => {
+  for (const name of ['powershell.exe', 'pwsh.exe']) {
+    it(`round-trips UTF-8, a trailing newline and an empty clipboard through ${name}`, {
+      skip: windows(name),
+    }, () => {
+      trip(name, base(dirname(lookup(name, 'win32', process.env))));
     });
   }
 });

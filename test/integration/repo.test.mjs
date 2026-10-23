@@ -32,6 +32,11 @@ describe('the repository', () => {
     assert.match(ci, /cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}/);
     const glob = /^\s*test-glob:\s*(\S+)$/m.exec(ci)?.[1];
     assert.ok(glob && pkg.scripts.test.endsWith(` ${glob}`), pkg.scripts.test);
+    assert.match(ci, /^\s*windows-test: npm run test:windows$/m);
+    assert.match(
+      pkg.scripts['test:windows'],
+      /^node --test .* test\/integration\/host\.test\.mjs$/
+    );
   });
 
   it('publishes to npm from ci.yml through semantic-release, with provenance', () => {
