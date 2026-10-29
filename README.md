@@ -18,17 +18,16 @@ It needs slicc-kernel 1.75.0 or later (`engines.slicc-kernel`). On an older kern
 
 ## Commands
 
-| command | copies | pastes |
-| --- | --- | --- |
-| `pbcopy` | stdin | |
-| `pbpaste` | | to stdout |
-| `xclip` | `-i`, `-in`: stdin, or the files named | `-o`, `-out` |
-| `xsel` | `-i`, `--input`: stdin | `-o`, `--output` |
-| `wl-copy` | stdin, or the arguments joined by spaces | |
-| `wl-paste` | | to stdout, then a newline |
-| `sccopy` | stdin | |
-| `scpaste` | | to stdout |
-
+| command    | copies                                   | pastes                    |
+| ---------- | ---------------------------------------- | ------------------------- |
+| `pbcopy`   | stdin                                    |                           |
+| `pbpaste`  |                                          | to stdout                 |
+| `xclip`    | `-i`, `-in`: stdin, or the files named   | `-o`, `-out`              |
+| `xsel`     | `-i`, `--input`: stdin                   | `-o`, `--output`          |
+| `wl-copy`  | stdin, or the arguments joined by spaces |                           |
+| `wl-paste` |                                          | to stdout, then a newline |
+| `sccopy`   | stdin                                    |                           |
+| `scpaste`  |                                          | to stdout                 |
 - **xclip:** `-selection` (or `-se`, `-sel`, …) takes `clipboard`, `primary` or `secondary`, or any prefix of one (`c`, `clip`, `p`); all three are the one clipboard, and `primary` is the default. `-rmlastnl` (or `-r`) drops one newline at the end of what is copied or pasted. A file named `-` is stdin, and xclip has no `--`, so a file whose name starts with `-` needs a path (`./-notes.txt`). Without `-i` or `-o`, xclip copies, unless stdin is a terminal; then it pastes. Of `-i` and `-o`, the last one wins, and files are ignored when pasting.
 - **xsel:** `-b`/`--clipboard`, `-p`/`--primary` and `-s`/`--secondary` all mean the one clipboard. `-c`/`--clear` empties it. `-n`/`--nodetach` is accepted and does nothing. Without a mode, xsel copies, unless stdin is a terminal; then it pastes. Of `-i`, `-o` and `-c`, the last one wins. It takes no other arguments.
 - **wl-copy:** `-n`/`--trim-newline` drops one newline at the end. `-c`/`--clear` empties the clipboard. Options may come anywhere, until `--`.
@@ -55,13 +54,12 @@ scpaste
 
 or without installing, `npx -p @ai-ecoverse/slicc-clipboard sccopy`. Only `sccopy` and `scpaste` are installed (the package's `bin`, small Node scripts in `host/`); the host's own `pbcopy`, `xclip` and the rest are never shadowed. They hand off to the platform's clipboard tool, the first one on `PATH`:
 
-| platform | `sccopy` | `scpaste` |
-| --- | --- | --- |
-| macOS | `pbcopy` | `pbpaste` |
-| Linux, under Wayland (`WAYLAND_DISPLAY` set) | `wl-copy` | `wl-paste --no-newline` |
-| Linux, X11 | `xclip -selection clipboard -i`, else `xsel --clipboard --input` | `xclip -selection clipboard -o`, else `xsel --clipboard --output` |
-| Windows | PowerShell `Set-Clipboard` | PowerShell `Get-Clipboard -Raw` |
-
+| platform                                     | `sccopy`                                                         | `scpaste`                                                         |
+| -------------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------- |
+| macOS                                        | `pbcopy`                                                         | `pbpaste`                                                         |
+| Linux, under Wayland (`WAYLAND_DISPLAY` set) | `wl-copy`                                                        | `wl-paste --no-newline`                                           |
+| Linux, X11                                   | `xclip -selection clipboard -i`, else `xsel --clipboard --input` | `xclip -selection clipboard -o`, else `xsel --clipboard --output` |
+| Windows                                      | PowerShell `Set-Clipboard`                                       | PowerShell `Get-Clipboard -Raw`                                   |
 - **Text only, bytes in = bytes out:** UTF-8 and a trailing newline survive a round trip unchanged, and `scpaste` adds nothing. On macOS, `pbcopy` and `pbpaste` run with `LANG` and `LC_ALL` set to `en_US.UTF-8`. On Windows, `powershell.exe` (else `pwsh.exe`) reads stdin and writes stdout as raw UTF-8 bytes, not through the console code page; `clip.exe` isn't used, as it mangles non-ASCII. Under Wayland, `wl-copy` and `wl-paste` come first, then `xclip` and `xsel` (through XWayland). Other Unix systems are treated as Linux.
 - **Spawning:** the tool runs with a fixed argv and no shell. `sccopy` doesn't wait for the background process that `xclip`, `xsel` and `wl-copy` leave behind to serve the clipboard.
 - **Errors:** with no tool on `PATH`, `sccopy: no clipboard tool found (tried xclip, xsel)` (the names tried on that platform) to stderr, exit 1. A tool that fails has its stderr passed through, exit 1. `-h` and `--help` print `usage: sccopy` (or `scpaste`) to stdout and exit 0; any other argument prints `sccopy: unknown option: <arg>` and the usage line to stderr, and exits 2.
@@ -71,7 +69,6 @@ or without installing, `npx -p @ai-ecoverse/slicc-clipboard sccopy`. Only `sccop
 ## The device
 
 What the scripts rely on from `/dev/clipboard` (slicc-kernel 1.75.0 and later):
-
 - Reading gives the clipboard's text as UTF-8, from one snapshot, then EOF.
 - Writing buffers per open file; the copy happens at `close()`. Coreutils `cat` reports an error there as a write error, so the scripts always write through `cat`, never a shell builtin.
 - A copy over 1 MiB fails with `EFBIG`, invalid UTF-8 with `EILSEQ`, a refusal (the tab not in front, or no permission) with `EACCES`, an embedder without a clipboard with `ENOTSUP`, anything else with `EIO`. Coreutils sees only the errno, so the commands print its message (`Permission denied`, `Not supported`, `File too large`, `Illegal byte sequence`, `I/O error`), not the hook's. After `Permission denied`, they add a second line that says what to do.
